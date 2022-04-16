@@ -1,0 +1,76 @@
+-- a - (not in)
+
+-- X-environment
+SELECT CODIGO
+    FROM XUCS
+        INNER JOIN XOCORRENCIAS USING (CODIGO)
+    WHERE ANO_LETIVO = '2003/2004'
+        AND CODIGO NOT IN (
+            SELECT CODIGO
+                FROM XTIPOSAULA
+                    INNER JOIN XDSD USING (ID)
+                WHERE ANO_LETIVO = '2003/2004'
+        );
+
+-- Y-environment
+SELECT CODIGO
+    FROM YUCS
+        INNER JOIN YOCORRENCIAS USING (CODIGO)
+    WHERE ANO_LETIVO = '2003/2004'
+        AND CODIGO NOT IN (
+            SELECT CODIGO
+                FROM YTIPOSAULA
+                    INNER JOIN YDSD USING (ID)
+                WHERE ANO_LETIVO = '2003/2004'
+        );
+
+-- Z-environment
+SELECT CODIGO
+    FROM ZUCS
+        INNER JOIN ZOCORRENCIAS USING (CODIGO)
+    WHERE ANO_LETIVO = '2003/2004'
+        AND CODIGO NOT IN (
+            SELECT CODIGO
+                FROM ZTIPOSAULA
+                    INNER JOIN ZDSD USING (ID)
+                WHERE ANO_LETIVO = '2003/2004'
+        );
+
+-- b - (external join and is null)
+
+-- X-environment
+SELECT XUCS.CODIGO AS CODIGO
+    FROM XUCS
+        INNER JOIN XOCORRENCIAS ON XUCS.CODIGO = XOCORRENCIAS.CODIGO
+        LEFT OUTER JOIN (
+            SELECT CODIGO
+                FROM XTIPOSAULA
+                    INNER JOIN XDSD USING (ID)
+                WHERE ANO_LETIVO = '2003/2004'
+        ) temp ON XUCS.CODIGO = temp.CODIGO
+    WHERE ANO_LETIVO = '2003/2004' AND temp.CODIGO IS NULL;
+
+-- Y-environment
+SELECT YUCS.CODIGO AS CODIGO
+    FROM YUCS
+        INNER JOIN YOCORRENCIAS ON YUCS.CODIGO = YOCORRENCIAS.CODIGO
+        LEFT OUTER JOIN (
+            SELECT CODIGO
+                FROM YTIPOSAULA
+                    INNER JOIN YDSD USING (ID)
+                WHERE ANO_LETIVO = '2003/2004'
+        ) temp ON YUCS.CODIGO = temp.CODIGO
+    WHERE ANO_LETIVO = '2003/2004' AND temp.CODIGO IS NULL;
+
+
+-- Z-environment
+SELECT ZUCS.CODIGO AS CODIGO
+    FROM ZUCS
+        INNER JOIN ZOCORRENCIAS ON ZUCS.CODIGO = ZOCORRENCIAS.CODIGO
+        LEFT OUTER JOIN (
+            SELECT CODIGO
+                FROM ZTIPOSAULA
+                    INNER JOIN ZDSD USING (ID)
+                WHERE ANO_LETIVO = '2003/2004'
+        ) temp ON ZUCS.CODIGO = temp.CODIGO
+    WHERE ANO_LETIVO = '2003/2004' AND temp.CODIGO IS NULL;
