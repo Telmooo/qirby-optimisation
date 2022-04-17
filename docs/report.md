@@ -1,5 +1,57 @@
 # Qirby Optimisation
 
+## Extra Indexes
+For the creation of extra indexes on the Z environment multiple criteria were used to decide whether or not to create an index over that column, criteria such as:
+- Usage of the column to merge tables (`JOIN` statements);
+- Usage of the column to filter tables (`WHERE` statements);
+- Usage of the column to aggregate tables (`GROUP BY` statements);
+
+Furthermore, other criteria were used to decide the type of index, such as:
+- Cardinality of the column;
+
+A list of candidate columns for indexes was created that consisted on:
+- `ANO_LETIVO, PERIODO, CODIGO` - used to join tables on all queries that require to calculate number of hours and other information involving table `XOCORRENCIAS` and `XTIPOSAULA`;
+- `TIPO` - used extensively for aggregating data based on the type of occurence and to filter data;
+- `ANO_LETIVO` - used vastly for filtering tables;
+- `CURSO` - used for filtering and aggregation on half the queries;
+- `CODIGO` - used for joining tables;
+- `ID` - used for joining tables;
+
+To decide on the type of index to be created, we studied the statistics of the columns to help with the decision:
+- `CODIGO, ANO_LETIVO, PERIODO` - This composite is almost completely unique, and for that reason the `BITMAP` index wasn't even considered. This index will be created as a `B-Tree` index.
+- `TIPO` - Low cardinality column, only having 5 distinct values out of over 20k rows, and furthermore, the column is stable. For these reasons, it was opted to create a `BITMAP` index.
+- `ANO_LETIVO` - Based on the low cardinality of this column, the slow growth of unique values (only once a year) and the types of queries we have, it was decided to create a `BITMAP` index on this column, on both `TIPOSAULA` and `OCORRENCIAS` tables. However, when comparing execution plans, a `BITMAP` index on this column wouldn't be used as opposed to a `B-Tree` index, due to the need of performing range scans. Therefore, it was opted to use a `B-tree` index even with criteria pointing to a `BITMAP` index.
+- `CURSO` - This column has a low cardinality (2:100), which is higher than the threshold considered (1:100). However, due to the stability of this table, as the table is never changed unless a restructure of the UCs is made, we opted to use a `BITMAP` index.
+- `CODIGO` - This column is a leading column on another index (primary key of `OCORRENCIAS`), therefore the creation of index in this column is redundant and wasn't performed;
+- `ID` - Column possesses a huge number of distinct values, therefore the only index that was considered was the `B-Tree` index.
+
+Thus, the indexes created were:
+- **cap_idx** - `B-tree` index on columns `CODIGO, ANO_LETIVO, PERIODO` of table `ZTIPOSAULA`
+```sql
+CREATE INDEX cap_idx ON ZTIPOSAULA(CODIGO, ANO_LETIVO, PERIODO);
+```
+
+- **tipo_idx** - `Bitmap` index on column `TIPO` of table `ZTIPOSAULA`
+```sql
+CREATE BITMAP INDEX tipo_idx ON ZTIPOSAULA(TIPO);
+```
+
+- **ano_tp_idx** & **ano_oc_idx** - `B-tree` index on column `ANO_LETIVO` of table `ZTIPOSAULA` and on column `ANO_LETIVO` of table `ZOCORRENCIAS`
+```sql
+CREATE INDEX ano_tp_idx ON ZTIPOSAULA(ANO_LETIVO);
+CREATE INDEX ano_oc_idx ON ZOCORRENCIAS(ANO_LETIVO);
+```
+
+- **curso_idx** - `Bitmap` index on column `CURSO` of table `ZUCS`
+```sql
+CREATE BITMAP INDEX curso_idx ON ZUCS(CURSO);
+```
+
+- **id_idx** - `B-tree` index on column `ID` of table `ZDSD`
+```sql
+CREATE INDEX id_idx ON ZDSD(ID);
+```
+
 ## Query 1 - Select and Join
 Show the codigo, designacao, ano_letivo, inscritos, tipo, and turnos for the course 'Bases de Dados' of the program 275.
 
@@ -18,13 +70,23 @@ SELECT CODIGO, DESIGNACAO, ANO_LETIVO, INSCRITOS, TIPO, TURNOS
 
 **Execution Plan**
 
+As can be seen in the execution plans below, the X environment presents the highest costs for the query, as expected. This is due to the nonexistance of indexes as compared to Y (has indexes created from primary keys) and Z (has primary key indexes and extra indexes), which causes the query to perform full accesses to the tables. In the Y environment, this cost is optimised due to the existence of indexes created from the primary keys, reducing the cost of access on tables and also on the join of the tables (as can be seen on the join between `YUCS` and `YOCORRENCIAS`).
+
+In the Z environment, the query is further optimised due to the creation of the index `cap_idx` on `ZTIPOSAULA` which permitted a more efficient join with the `ZOCORRENCIAS` table, cutting a lot of the cost from the Y environment. The existance of the `curso_idx` index also helped when filtering the table `ZUCS` for the course `275`.
+
+**Cost optimisation in comparison to X environment**
+|  X 	|    Y   	| Z    	|
+|:--:	|:------:	|------	|
+| 0% 	| -91.4% 	| -97% 	|
+
 *X-Environment*
 ![Query 1 execution plan in X environment](images/query1_plan_x.png)
 
 *Y-Environment*
 ![Query 1 execution plan in Y environment](images/query1_plan_y.png)
 
-
+*Z-Environment*
+![Query 1 execution plan in Z environment](images/query1_plan_z.png)
 
 ## Query 2 - Aggregation
 How many class hours of each type did the program 233 planned in year 2004/2005?
@@ -64,6 +126,10 @@ GROUP BY TIPO;
 *Y-Environment*
 ![Query 2 execution plan in Y environment](images/query2_plan_y.png)
 
+*Z-Environment*
+![Query 2 execution plan in Z environment](images/query2_plan_z.png)
+
+
 ## Query 3 - Negation
 Which courses (show the code) did have occurrences planned but did not get service assigned in year 2003/2004?
 
@@ -102,6 +168,9 @@ SELECT CODIGO
 *Y-Environment*
 ![Query 3 case A execution plan in Y environment](images/query3a_plan_y.png)
 
+*Z-Environment*
+![Query 3 case A execution plan in Z environment](images/query3a_plan_z.png)
+
 ### Case B - Using `OUTER JOIN` and `IS NULL`
 
 **SQL Query**
@@ -129,6 +198,8 @@ Same result as case A.
 
 *Y-Environment*
 ![Query 3 case B execution plan in Y environment](images/query3b_plan_y.png)
+
+![Query 3 case B execution plan in Z environment](images/query3b_plan_z.png)
 
 ## Query 4
 Who is the professor with more class hours for each type of class, in the academic year 2003/2004? Show the number and name of the professor, the type of class and the total of class hours times the factor.
@@ -176,6 +247,9 @@ SELECT NR, NOME, TIPO, HOURS
 *Y-Environment*
 ![Query 4 execution plan in Y environment](images/query4_plan_y.png)
 
+*Z-Environment*
+![Query 4 execution plan in Z environment](images/query4_plan_z.png)
+
 ## Query 5
 Compare the execution plans (just the environment Z) and the index sizes for the query giving the course code, the academic year, the period, and number of hours of the type 'OT' in the academic years of 2002/2003 and 2003/2004.
 
@@ -212,13 +286,13 @@ DROP INDEX BTREE_5;
 **Execution Plan**
 
 *Z-Environment*
-![Query 5 case A execution plan in Z environment](images/query4_plan_x.png)
+![Query 5 case A execution plan in Z-environment](images/query5a_plan_z.png)
 
 ### Case B - Using `Bitmap`
 
 **SQL Query**
 ```sql
-CREATE BITMAP INDEX BITMAP_5 ON ZTIPOS(ANO_LETIVO, TIPO);
+CREATE BITMAP INDEX BITMAP_5 ON ZTIPOSAULA(ANO_LETIVO, TIPO);
 
 SELECT CODIGO, ANO_LETIVO, PERIODO, SUM(COALESCE(N_AULAS, 1) * HORAS_TURNO * DECODE(PERIODO /*EXPR*/,
                                                     '1S', 6, /*SEARCH, RESULT*/
@@ -248,7 +322,7 @@ Same as case A.
 **Execution Plan**
 
 *Z-Environment*
-![Query 5 case A execution plan in Z environment](images/query4_plan_x.png)
+![Query 5 case B execution plan in Z-environment](images/query5b_plan_z.png)
 
 ## Query 6
 Select the programs (curso) that have classes with all the existing types.
@@ -279,5 +353,11 @@ HAVING COUNT(DISTINCT TIPO) = (
 
 **Execution Plan**
 
+*X-Environment*
+![Query 6 execution plan in X-environment](images/query6_plan_x.png)
+
+*Y-Environment*
+![Query 6 execution plan in Y-environment](images/query6_plan_y.png)
+
 *Z-Environment*
-![Query 5 case A execution plan in Z environment](images/query4_plan_x.png)
+![Query 6 execution plan in Z-environment](images/query6_plan_z.png)
