@@ -1,53 +1,76 @@
 # Qirby Optimisation
 
 ## Extra Indexes
-For the creation of extra indexes on the Z environment, multiple criteria were used to decide whether to create an index over that column, criteria such as:
-- Usage of the column to merge tables (`JOIN` statements);
-- Usage of the column to filter tables (`WHERE` statements);
+For the creation of extra indexes on the Z environment, multiple criteria were used to decide whether to create an index over that column, criteria such as:  
+
+- Usage of the column to merge tables (`JOIN` statements);  
+
+- Usage of the column to filter tables (`WHERE` statements);  
+
 - Usage of the column to aggregate tables (`GROUP BY` statements);
 
-Furthermore, other criteria were used to decide the type of index, such as:
+
+
+Furthermore, other criteria were used to decide the type of index, such as:  
+
 - Cardinality of the column;
 
-A list of candidate columns for indexes was created that consisted on:
-- `ANO_LETIVO, PERIODO, CODIGO` - used to join tables on all queries that require to calculate number of hours and other information involving table `XOCORRENCIAS` and `XTIPOSAULA`;
-- `TIPO` - used extensively for aggregating data based on the type of occurrence and to filter data;
-- `ANO_LETIVO` - used vastly for filtering tables;
-- `CURSO` - used for filtering and aggregation on half the queries;
-- `CODIGO` - used for joining tables;
-- `ID` - used for joining tables;
 
-To decide on the type of index to be created, we studied the statistics of the columns to help with the decision:
-- `CODIGO, ANO_LETIVO, PERIODO` - This composite is almost completely unique, and for that reason the `BITMAP` index wasn't even considered. This index will be created as a `B-Tree` index.
-- `TIPO` - Low cardinality column, only having 5 distinct values out of over 20k rows, and furthermore, the column is stable. For these reasons, it was opted to create a `BITMAP` index.
-- `ANO_LETIVO` - Based on the low cardinality of this column, the slow growth of unique values (only once a year) and the types of queries we have, it was decided to create a `BITMAP` index on this column, on both `TIPOSAULA` and `OCORRENCIAS` tables. However, when comparing execution plans, a `BITMAP` index on this column wouldn't be used as opposed to a `B-Tree` index, due to the need of performing range scans. `B-tree` index comes at the cost of using approximately 10x more space (0.5625MB vs 0.0625MB). Therefore, it was opted to use a `B-tree` index even with criteria pointing to a `BITMAP` index, as the former affected more queries than the latter.
-- `CURSO` - This column has a low cardinality (2:100), which is higher than the threshold considered (1:100). However, due to the stability of this table, as the table is never changed unless a restructure of the UCs is made, we opted to use a `BITMAP` index.
-- `CODIGO` - This column is a leading column on another index (primary key of `OCORRENCIAS`), therefore the creation of index in this column is redundant and wasn't performed;
-- `ID` - Column possesses a huge number of distinct values, therefore the only index that was considered was the `B-Tree` index.
 
-Thus, the indexes created were:
-- **cap_idx** - `B-tree` index on columns `CODIGO, ANO_LETIVO, PERIODO` of table `ZTIPOSAULA`
+A list of candidate columns for indexes was created that consisted on:  
+
+- `ANO_LETIVO, PERIODO, CODIGO` - used to join tables on all queries that require to calculate number of hours and other information involving table `XOCORRENCIAS` and `XTIPOSAULA`;  
+
+- `TIPO` - used extensively for aggregating data based on the type of occurrence and to filter data;  
+
+- `ANO_LETIVO` - used vastly for filtering tables;  
+
+- `CURSO` - used for filtering and aggregation on half the queries;  
+
+- `CODIGO` - used for joining tables;  
+
+- `ID` - used for joining tables;  
+
+
+
+To decide on the type of index to be created, we studied the statistics of the columns to help with the decision:  
+
+- `CODIGO, ANO_LETIVO, PERIODO` - This composite is almost completely unique, and for that reason the `BITMAP` index wasn't even considered. This index will be created as a `B-Tree` index.  
+
+- `TIPO` - Low cardinality column, only having 5 distinct values out of over 20k rows, and furthermore, the column is stable. For these reasons, it was opted to create a `BITMAP` index.  
+
+- `ANO_LETIVO` - Based on the low cardinality of this column, the slow growth of unique values (only once a year) and the types of queries we have, it was decided to create a `BITMAP` index on this column, on both `TIPOSAULA` and `OCORRENCIAS` tables. However, when comparing execution plans, a `BITMAP` index on this column wouldn't be used as opposed to a `B-Tree` index, due to the need of performing range scans. `B-tree` index comes at the cost of using approximately 10x more space (0.5625MB vs 0.0625MB). Therefore, it was opted to use a `B-tree` index even with criteria pointing to a `BITMAP` index, as the former affected more queries than the latter.  
+
+- `CURSO` - This column has a low cardinality (2:100), which is higher than the threshold considered (1:100). However, due to the stability of this table, as the table is never changed unless a restructure of the UCs is made, we opted to use a `BITMAP` index.  
+
+- `CODIGO` - This column is a leading column on another index (primary key of `OCORRENCIAS`), therefore the creation of index in this column is redundant and wasn't performed;  
+
+- `ID` - Column possesses a huge number of distinct values, therefore the only index that was considered was the `B-Tree` index.  
+
+Thus, the indexes created were:  
+
+- **cap_idx** - `B-tree` index on columns `CODIGO, ANO_LETIVO, PERIODO` of table `ZTIPOSAULA`  
 ```sql
 CREATE INDEX cap_idx ON ZTIPOSAULA(CODIGO, ANO_LETIVO, PERIODO);
 ```
 
-- **tipo_idx** - `Bitmap` index on column `TIPO` of table `ZTIPOSAULA`
+- **tipo_idx** - `Bitmap` index on column `TIPO` of table `ZTIPOSAULA`  
 ```sql
 CREATE BITMAP INDEX tipo_idx ON ZTIPOSAULA(TIPO);
 ```
 
-- **ano_tp_idx** & **ano_oc_idx** - `B-tree` index on column `ANO_LETIVO` of table `ZTIPOSAULA` and on column `ANO_LETIVO` of table `ZOCORRENCIAS`
+- **ano_tp_idx** & **ano_oc_idx** - `B-tree` index on column `ANO_LETIVO` of table `ZTIPOSAULA` and on column `ANO_LETIVO` of table `ZOCORRENCIAS`  
 ```sql
 CREATE INDEX ano_tp_idx ON ZTIPOSAULA(ANO_LETIVO);
 CREATE INDEX ano_oc_idx ON ZOCORRENCIAS(ANO_LETIVO);
 ```
 
-- **curso_idx** - `Bitmap` index on column `CURSO` of table `ZUCS`
+- **curso_idx** - `Bitmap` index on column `CURSO` of table `ZUCS`  
 ```sql
 CREATE BITMAP INDEX curso_idx ON ZUCS(CURSO);
 ```
 
-- **id_idx** - `B-tree` index on column `ID` of table `ZDSD`
+- **id_idx** - `B-tree` index on column `ID` of table `ZDSD`  
 ```sql
 CREATE INDEX id_idx ON ZDSD(ID);
 ```
@@ -75,17 +98,18 @@ As can be seen in the execution plans below, the X environment presents the high
 In the Z environment, the query is further optimised due to the creation of the index `cap_idx` on `ZTIPOSAULA` which permitted a more efficient join with the `ZOCORRENCIAS` table, cutting a lot of the cost from the Y environment. The existence of the `curso_idx` index also helped when filtering the table `ZUCS` for the course `275`.
 
 **Cost optimisation in comparison to X environment**
+
 |  X 	|    Y   	| Z    	|
-|:--:	|:------:	|------	|
+|:-----:|:---------:|:-----:|
 | 0% 	| -91.4% 	| -97% 	|
 
-*X-Environment*
+*X-Environment*  
 ![Query 1 execution plan in X environment](images/query1_plan_x.png)
 
-*Y-Environment*
+*Y-Environment*  
 ![Query 1 execution plan in Y environment](images/query1_plan_y.png)
 
-*Z-Environment*
+*Z-Environment*  
 ![Query 1 execution plan in Z environment](images/query1_plan_z.png)
 
 ## Query 2 - Aggregation
@@ -125,17 +149,18 @@ As can be seen in the execution plans below, the X environment presents the high
 The Z-environment is further optimised because of the creation of indexes `cap_idx` and `ano_tp_idx` which enable a more efficient join and filter of tables, respectively.
 
 **Cost optimisation in comparison to X environment**
+
 |  X 	|    Y   	| Z      	|
-|:--:	|:------:	|--------	|
+|:--:	|:------:	|:--------:	|
 | 0% 	| -92.2% 	| -92.7% 	|
 
-*X-Environment*
+*X-Environment*  
 ![Query 2 execution plan in X environment](images/query2_plan_x.png)
 
-*Y-Environment*
+*Y-Environment*  
 ![Query 2 execution plan in Y environment](images/query2_plan_y.png)
 
-*Z-Environment*
+*Z-Environment*  
 ![Query 2 execution plan in Z environment](images/query2_plan_z.png)
 
 
@@ -176,17 +201,18 @@ As can be seen in the execution plans below, the X environment presents the high
 On Z-environment, the query is further optimised due to the creation of the index `ano_tp_idx` that improved the cost-effectiveness of the filtering of `ZTIPOSAULA` table. Another minor optimisation was due to the creation of the index `id_idx` which reduced the cost of the fast full scan on `YDSD` table, however this reduction was minor as the previous environment already had used the index created by the primary key to optimise this scan.
 
 **Cost optimisation in comparison to X environment**
+
 |  X 	|    Y   	| Z      	|
-|:--:	|:------:	|--------	|
+|:--:	|:------:	|:--------:	|
 | 0% 	| -87.3% 	| -88.6% 	|
 
-*X-Environment*
+*X-Environment*  
 ![Query 3 case A execution plan in X environment](images/query3a_plan_x.png)
 
-*Y-Environment*
+*Y-Environment*  
 ![Query 3 case A execution plan in Y environment](images/query3a_plan_y.png)
 
-*Z-Environment*
+*Z-Environment*  
 ![Query 3 case A execution plan in Z environment](images/query3a_plan_z.png)
 
 ### Case B - Using `OUTER JOIN` and `IS NULL`
@@ -214,17 +240,18 @@ Same result as case A.
 Judging from the execution plan, the Oracle SQL environment optimised the query performed that resulted on the exact same execution plan as case A, and therefore all the conclusions explained above apply the same for this case.
 
 **Cost optimisation in comparison to X environment**
+
 |  X 	|    Y   	| Z      	|
-|:--:	|:------:	|--------	|
+|:--:	|:------:	|:--------:	|
 | 0% 	| -87.3% 	| -88.6% 	|
 
-*X-Environment*
+*X-Environment*  
 ![Query 3 case B execution plan in X environment](images/query3b_plan_x.png)
 
-*Y-Environment*
+*Y-Environment*  
 ![Query 3 case B execution plan in Y environment](images/query3b_plan_y.png)
 
-*Z-Environment*
+*Z-Environment*  
 ![Query 3 case B execution plan in Z environment](images/query3b_plan_z.png)
 
 ## Query 4
@@ -272,17 +299,18 @@ As can be seen in the execution plans below, the X environment presents the high
 The Z-environment is slightly optimised thanks to the `ano_tp_idx` index, which allowed for a range scan instead of a full scan.
 
 **Cost optimisation in comparison to X environment**
+
 |  X 	|    Y   	| Z      	|
-|:--:	|:------:	|--------	|
+|:--:	|:------:	|:--------:	|
 | 0% 	| -87.1% 	| -87.5% 	|
 
-*X-Environment*
+*X-Environment*  
 ![Query 4 execution plan in X environment](images/query4_plan_x.png)
 
-*Y-Environment*
+*Y-Environment*  
 ![Query 4 execution plan in Y environment](images/query4_plan_y.png)
 
-*Z-Environment*
+*Z-Environment*  
 ![Query 4 execution plan in Z environment](images/query4_plan_z.png)
 
 ## Query 5
@@ -316,11 +344,11 @@ SELECT CODIGO, ANO_LETIVO, PERIODO, SUM(COALESCE(N_AULAS, 1) * HORAS_TURNO * DEC
 
 **Execution Plan**
 
-*X-Environment*
-![Query 5 execution plan in X environment](query5_plan_x.png)
+*X-Environment*  
+![Query 5 execution plan in X environment](images/query5_plan_x.png)
 
-*Y-Environment*
-![](images/query5_plan_y.png)  
+*Y-Environment*  
+![Query 5 execution plan in Y environment](images/query5_plan_y.png)  
 
 ### Case A - Using `B-tree`
 
@@ -350,7 +378,7 @@ DROP INDEX BTREE_5;
 
 **Execution Plan**
 
-*Z-Environment*
+*Z-Environment*  
 ![Query 5 case A execution plan in Z-environment](images/query5a_plan_z.png)
 
 ### Case B - Using `Bitmap`
@@ -382,12 +410,13 @@ DROP INDEX BITMAP_5;
 
 **Execution Plan**
 
-*Z-Environment*
+*Z-Environment*  
 ![Query 5 case B execution plan in Z-environment](images/query5b_plan_z.png)
 
 **Cost optimisation in comparison to X environment**
+
 |  X 	|    Y   	| Z (A)  	| Z (B)  	|
-|:--:	|:------:	|--------	|--------	|
+|:--:	|:------:	|:--------:	|:--------:	|
 | 0% 	| -94.1% 	| -99.2% 	| -97.3% 	|
 
 The index sizes were obtained via this SQL statement:
@@ -439,21 +468,22 @@ As can be seen in the execution plans below, the X environment presents the high
 However, our indexes didn't further optimise this query, staying with the same execution plan and the same cost for query.
 
 **Cost optimisation in comparison to X environment**
+
 |  X 	|    Y   	| Z      	|
-|:--:	|:------:	|--------	|
+|:--:	|:------:	|:--------:	|
 | 0% 	| -91.9% 	| -91.9% 	|
 
-*X-Environment*
+*X-Environment*  
 ![Query 6 execution plan in X-environment](images/query6_plan_x.png)
 
-*Y-Environment*
+*Y-Environment*  
 ![Query 6 execution plan in Y-environment](images/query6_plan_y.png)
 
-*Z-Environment*
+*Z-Environment*  
 ![Query 6 execution plan in Z-environment](images/query6_plan_z.png)
 
 ## Overall System Cost Optimisation
 
 |  X 	|    Y   	| Z      	|
-|:--:	|:------:	|--------	|
+|:--:	|:------:	|:--------:	|
 | 0% 	| -90.7% 	| -92.8% 	|
