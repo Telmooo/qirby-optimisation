@@ -120,6 +120,15 @@ GROUP BY TIPO;
 
 **Execution Plan**
 
+As can be seen in the execution plans below, the X environment presents the highest costs for the query, as expected. This is due to the nonexistance of indexes as compared to Y (has indexes created from primary keys) and Z (has primary key indexes and extra indexes), which causes the query to perform full accesses to the tables. In the Y environment, this cost is optimised due to the existence of indexes created from the primary keys, reducing the cost of access on tables and also on the join of the tables (as can be seen on the hash join operation between the tables).
+
+The Z-environment is further optimised because of the creation of indexes `cap_idx` and `ano_tp_idx` which enable a more efficient join and filter of tables, respectively.
+
+**Cost optimisation in comparison to X environment**
+|  X 	|    Y   	| Z      	|
+|:--:	|:------:	|--------	|
+| 0% 	| -92.2% 	| -92.7% 	|
+
 *X-Environment*
 ![Query 2 execution plan in X environment](images/query2_plan_x.png)
 
@@ -162,6 +171,11 @@ SELECT CODIGO
 
 **Execution Plan**
 
+**Cost optimisation in comparison to X environment**
+|  X 	|    Y   	| Z      	|
+|:--:	|:------:	|--------	|
+| 0% 	| -87.3% 	| -88.6% 	|
+
 *X-Environment*
 ![Query 3 case A execution plan in X environment](images/query3a_plan_x.png)
 
@@ -192,6 +206,11 @@ SELECT XUCS.CODIGO AS CODIGO
 Same result as case A.
 
 **Execution Plan**
+
+**Cost optimisation in comparison to X environment**
+|  X 	|    Y   	| Z      	|
+|:--:	|:------:	|--------	|
+| 0% 	| -87.3% 	| -88.6% 	|
 
 *X-Environment*
 ![Query 3 case B execution plan in X environment](images/query3b_plan_x.png)
@@ -241,6 +260,11 @@ SELECT NR, NOME, TIPO, HOURS
 
 **Execution Plan**
 
+**Cost optimisation in comparison to X environment**
+|  X 	|    Y   	| Z      	|
+|:--:	|:------:	|--------	|
+| 0% 	| -87.1% 	| -87.5% 	|
+
 *X-Environment*
 ![Query 4 execution plan in X environment](images/query4_plan_x.png)
 
@@ -252,6 +276,40 @@ SELECT NR, NOME, TIPO, HOURS
 
 ## Query 5
 Compare the execution plans (just the environment Z) and the index sizes for the query giving the course code, the academic year, the period, and number of hours of the type 'OT' in the academic years of 2002/2003 and 2003/2004.
+
+**SQL Query**
+```sql
+SELECT CODIGO, ANO_LETIVO, PERIODO, SUM(COALESCE(N_AULAS, 1) * HORAS_TURNO * DECODE(PERIODO /*EXPR*/,
+                                                    '1S', 6, /*SEARCH, RESULT*/
+                                                    '2S', 6,
+                                                    '1T', 3,
+                                                    '2T', 3,
+                                                    '3T', 3,
+                                                    '4T', 3,
+                                                    'T', 3,
+                                                    'A', 12,
+                                                    'B', 2,
+                                                    6 /*DEFAULT*/) * 4) AS HOURS
+    FROM XOCORRENCIAS
+        INNER JOIN XTIPOSAULA USING (CODIGO, ANO_LETIVO, PERIODO)
+    WHERE TIPO = 'OT' AND (
+        ANO_LETIVO = '2002/2003' OR ANO_LETIVO = '2003/2004'
+    )
+    GROUP BY (CODIGO, ANO_LETIVO, PERIODO);
+
+```
+
+**Result**
+
+![Query 5 result](images/query5_result.png)
+
+**Execution Plan**
+
+*X-Environment*
+![Query 5 execution plan in X environment](query5_plan_x.png)
+
+*Y-Environment*
+![](images/query5_plan_y.png)  
 
 ### Case A - Using `B-tree`
 
@@ -278,10 +336,6 @@ SELECT CODIGO, ANO_LETIVO, PERIODO, SUM(COALESCE(N_AULAS, 1) * HORAS_TURNO * DEC
 
 DROP INDEX BTREE_5;
 ```
-
-**Result**
-
-![Query 5 result](images/query5_result.png)
 
 **Execution Plan**
 
@@ -315,14 +369,15 @@ SELECT CODIGO, ANO_LETIVO, PERIODO, SUM(COALESCE(N_AULAS, 1) * HORAS_TURNO * DEC
 DROP INDEX BITMAP_5;
 ```
 
-**Result**
-
-Same as case A.
-
 **Execution Plan**
 
 *Z-Environment*
 ![Query 5 case B execution plan in Z-environment](images/query5b_plan_z.png)
+
+**Cost optimisation in comparison to X environment**
+|  X 	|    Y   	| Z (A)  	| Z (B)  	|
+|:--:	|:------:	|--------	|--------	|
+| 0% 	| -94.1% 	| -99.2% 	| -97.3% 	|
 
 ## Query 6
 Select the programs (curso) that have classes with all the existing types.
@@ -352,6 +407,11 @@ HAVING COUNT(DISTINCT TIPO) = (
 ![Query 6 result](images/query6_result.png)
 
 **Execution Plan**
+
+**Cost optimisation in comparison to X environment**
+|  X 	|    Y   	| Z      	|
+|:--:	|:------:	|--------	|
+| 0% 	| -91.9% 	| -91.9% 	|
 
 *X-Environment*
 ![Query 6 execution plan in X-environment](images/query6_plan_x.png)
