@@ -74,7 +74,7 @@ SELECT v.description, v.partyName, v.year, v.investment_per_km2
 
 -- Which is the party with more salaries per thousand inhabitants on each year?
 WITH aux_view (description, partyName, year, salaries_per_thousand_inhabitants) AS (
-    SELECT h.description, prt.partyName, p.year, SUM(e.amount) / SUM(m.population) AS salaries_per_thousand_inhabitants
+    SELECT h.description, prt.partyName, p.year, SUM(e.amount) * 1000 / SUM(m.population) AS salaries_per_thousand_inhabitants
         FROM GTD12.headings h
             INNER JOIN GTD12.aexpenses e ON h.headingId = e.headingId
             INNER JOIN GTD12.municipalities m ON m.code = e.code
