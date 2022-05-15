@@ -80,3 +80,146 @@ BEGIN
     END LOOP;
 END;
 /
+-- Parties
+INSERT INTO parties
+SELECT p.acronym, p.partyName, p.spectrum
+    FROM GTD12.parties p;
+/
+INSERT INTO periods (periodId, year, quarter, leaderships, expenses, revenues)
+SELECT p.periodId, p.year, p.quarter, CAST(
+        MULTISET(
+            SELECT REF(m), REF(prt)
+                FROM GTD12.leaderships l, municipalities m, parties prt
+                WHERE l.periodId = p.periodId AND l.code = m.code AND prt.acronym = l.acronym
+        ) AS leaderships_tab
+    ), aremuneration_tab(), aremuneration_tab()
+FROM GTD12.periods p;
+/
+-- Headings
+DECLARE
+    heading_ref     REF heading_t;
+BEGIN
+    FOR cur_rec IN (
+        SELECT *
+            FROM GTD12.headings h
+            ORDER BY h.hlevel ASC
+    )
+    LOOP
+        BEGIN
+            CASE cur_rec.hlevel
+            WHEN 1
+            THEN
+                INSERT INTO headings (headingId, description, remun_type, childHeadings, remunerations)
+                    VALUES (cur_rec.headingId, cur_rec.description, cur_rec.type, headings_tab(), aremuneration_tab());
+            ELSE
+                INSERT INTO headings h (headingId, description, remun_type, parentHeading, childHeadings, remunerations)
+                    VALUES (cur_rec.headingId, cur_rec.description, cur_rec.type, (
+                        SELECT REF(hp)
+                            FROM headings hp
+                            WHERE hp.headingId = cur_rec.parent
+                    ), headings_tab(), aremuneration_tab()) RETURNING REF(h) INTO heading_ref;
+
+                INSERT INTO TABLE(
+                    SELECT hp.childHeadings
+                        FROM headings hp
+                        WHERE hp.headingId = cur_rec.parent
+                ) VALUES (heading_ref);
+            END CASE;
+        END;
+    END LOOP;
+END;
+/
+-- Remunerations
+---- Expenses
+DECLARE
+    remuneration_ref    REF aremuneration_t;
+BEGIN
+    FOR cur_rec IN (
+        SELECT *
+            FROM GTD12.AEXPENSES 
+    )
+    LOOP
+        BEGIN
+            INSERT INTO expenses e (aremunerationId, amount, heading, code, period)
+            VALUES (cur_rec.aexpensesId, cur_rec.amount, (
+                SELECT REF(h)
+                    FROM headings h
+                    WHERE h.headingId = cur_rec.headingId
+            ), (
+                SELECT REF(m)
+                    FROM municipalities m
+                    WHERE m.code = cur_rec.code
+            ), (
+                SELECT REF(p)
+                    FROM periods p
+                    WHERE p.periodId = cur_rec.periodId
+            )) RETURNING REF(e) INTO remuneration_ref;
+
+            -- All following inserts could be avoided with triggers
+            INSERT INTO TABLE(
+                SELECT h.remunerations
+                    FROM headings h
+                    WHERE h.headingId = cur_rec.headingId
+            ) VALUES (remuneration_ref);
+
+            INSERT INTO TABLE(
+                SELECT p.expenses
+                    FROM periods p
+                    WHERE p.periodId = cur_rec.periodId
+            ) VALUES (remuneration_ref);
+
+            INSERT INTO TABLE(
+                SELECT m.expenses
+                    FROM municipalities m
+                    WHERE m.code = cur_rec.code
+            ) VALUES (remuneration_ref);
+        END;
+    END LOOP;
+END;
+/
+---- Revenues
+DECLARE
+    remuneration_ref    REF aremuneration_t;
+BEGIN
+    FOR cur_rec IN (
+        SELECT *
+            FROM GTD12.AREVENUES 
+    )
+    LOOP
+        BEGIN
+            INSERT INTO revenues r (aremunerationId, amount, heading, code, period)
+            VALUES (cur_rec.arevenuesId, cur_rec.amount, (
+                SELECT REF(h)
+                    FROM headings h
+                    WHERE h.headingId = cur_rec.headingId
+            ), (
+                SELECT REF(m)
+                    FROM municipalities m
+                    WHERE m.code = cur_rec.code
+            ), (
+                SELECT REF(p)
+                    FROM periods p
+                    WHERE p.periodId = cur_rec.periodId
+            )) RETURNING REF(r) INTO remuneration_ref;
+
+            -- All following inserts could be avoided with triggers
+            INSERT INTO TABLE(
+                SELECT h.remunerations
+                    FROM headings h
+                    WHERE h.headingId = cur_rec.headingId
+            ) VALUES (remuneration_ref);
+
+            INSERT INTO TABLE(
+                SELECT p.revenues
+                    FROM periods p
+                    WHERE p.periodId = cur_rec.periodId
+            ) VALUES (remuneration_ref);
+
+            INSERT INTO TABLE(
+                SELECT m.revenues
+                    FROM municipalities m
+                    WHERE m.code = cur_rec.code
+            ) VALUES (remuneration_ref);
+        END;
+    END LOOP;
+END;
