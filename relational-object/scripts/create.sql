@@ -67,7 +67,8 @@ CREATE OR REPLACE TYPE period_t AS OBJECT (
     quarter         NUMBER(38, 0),
     leaderships     leaderships_tab,
 
-    MEMBER FUNCTION remunerations_km2(heading_name VARCHAR2, party_name VARCHAR2, municipality_code VARCHAR2) RETURN NUMBER
+    MEMBER FUNCTION remunerations_km2(heading_name VARCHAR2, party_name VARCHAR2, municipality_code VARCHAR2) RETURN NUMBER,
+    MEMBER FUNCTION remunerations_1k_people(heading_name VARCHAR2, party_name VARCHAR2, municipality_code VARCHAR2) RETURN NUMBER
 );
 /
 -- HEADINGS
@@ -131,6 +132,18 @@ CREATE OR REPLACE TYPE BODY period_t AS
         ret_var NUMBER;
     BEGIN
         SELECT SUM(VALUE(e).amount) / MAX(VALUE(l).code.area) INTO ret_var
+            FROM TABLE(SELF.expenses) e, TABLE(SELF.leaderships) l
+            WHERE VALUE(e).heading.description = heading_name
+                AND VALUE(e).code.code = municipality_code
+                AND VALUE(l).party.acronym = party_name
+                AND VALUE(l).code.code = municipality_code;
+        RETURN ret_var;
+    END;
+
+    MEMBER FUNCTION remunerations_1k_people(heading_name VARCHAR2, party_name VARCHAR2, municipality_code VARCHAR2) RETURN NUMBER IS
+        ret_var NUMBER;
+    BEGIN
+        SELECT SUM(VALUE(e).amount) / MAX(VALUE(l).code.population) * 1000 INTO ret_var
             FROM TABLE(SELF.expenses) e, TABLE(SELF.leaderships) l
             WHERE VALUE(e).heading.description = heading_name
                 AND VALUE(e).code.code = municipality_code
