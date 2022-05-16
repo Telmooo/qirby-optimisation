@@ -65,7 +65,9 @@ CREATE OR REPLACE TYPE period_t AS OBJECT (
     periodId        NUMBER(38, 0),
     year            NUMBER(38, 0),
     quarter         NUMBER(38, 0),
-    leaderships     leaderships_tab
+    leaderships     leaderships_tab,
+
+    MEMBER FUNCTION remunerations_km2(heading_name VARCHAR2, party_name VARCHAR2, municipality_code VARCHAR2) RETURN NUMBER
 );
 /
 -- HEADINGS
@@ -99,15 +101,12 @@ ALTER TYPE period_t ADD ATTRIBUTE (expenses aremuneration_tab, revenues aremuner
 /
 ALTER TYPE municipality_t ADD ATTRIBUTE (expenses aremuneration_tab, revenues aremuneration_tab) CASCADE;
 /
-
-
 -- METHODS
 CREATE OR REPLACE TYPE BODY heading_t AS
-
     MEMBER FUNCTION get_value RETURN NUMBER IS
         res NUMBER;
     BEGIN
-        SELECT SUM(VALUE(r).amount) INTO res FROM TABLE(remunerations) r;
+        SELECT SUM(VALUE(r).amount) INTO res FROM TABLE(SELF.remunerations) r;
         IF remun_type = 'D' THEN
             RETURN -res;
         ELSE
@@ -118,18 +117,29 @@ CREATE OR REPLACE TYPE BODY heading_t AS
     MEMBER FUNCTION is_consistent RETURN VARCHAR2 IS
         child_sum NUMBER;
     BEGIN
-        SELECT SUM(VALUE(h).get_value()) INTO child_sum FROM TABLE(childHeadings) h;
-        IF get_value() = child_sum THEN
+        SELECT SUM(VALUE(h).get_value()) INTO child_sum FROM TABLE(SELF.childHeadings) h;
+        IF SELF.get_value() = child_sum THEN
             RETURN 'T';
         ELSE
             RETURN 'F';
         END IF;
     END is_consistent;
-
 END;
 /
-
-
+CREATE OR REPLACE TYPE BODY period_t AS
+    MEMBER FUNCTION remunerations_km2(heading_name VARCHAR2, party_name VARCHAR2, municipality_code VARCHAR2) RETURN NUMBER IS
+        ret_var NUMBER;
+    BEGIN
+        SELECT SUM(VALUE(e).amount) / MAX(VALUE(l).code.area) INTO ret_var
+            FROM TABLE(SELF.expenses) e, TABLE(SELF.leaderships) l
+            WHERE VALUE(e).heading.description = heading_name
+                AND VALUE(e).code.code = municipality_code
+                AND VALUE(l).party.acronym = party_name
+                AND VALUE(l).code.code = municipality_code;
+        RETURN ret_var;
+    END;
+END;
+/
 
 -- TABLE CREATION
 CREATE TABLE countries OF country_t (
