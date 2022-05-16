@@ -72,7 +72,9 @@ CREATE OR REPLACE TYPE period_t AS OBJECT (
 CREATE OR REPLACE TYPE heading_t AS OBJECT (
     headingId       NUMBER(38, 0),
     description     VARCHAR2(128),
-    remun_type      VARCHAR2(1)
+    remun_type      VARCHAR2(1),
+    MEMBER FUNCTION get_value RETURN NUMBER,
+    MEMBER FUNCTION is_consistent RETURN VARCHAR2
 );
 /
 CREATE OR REPLACE TYPE headings_tab AS TABLE OF REF heading_t;
@@ -97,6 +99,38 @@ ALTER TYPE period_t ADD ATTRIBUTE (expenses aremuneration_tab, revenues aremuner
 /
 ALTER TYPE municipality_t ADD ATTRIBUTE (expenses aremuneration_tab, revenues aremuneration_tab) CASCADE;
 /
+
+
+-- METHODS
+CREATE OR REPLACE TYPE BODY heading_t AS
+
+    MEMBER FUNCTION get_value RETURN NUMBER IS
+        res NUMBER;
+    BEGIN
+        SELECT SUM(VALUE(r).amount) INTO res FROM TABLE(remunerations) r;
+        IF remun_type = 'D' THEN
+            RETURN -res;
+        ELSE
+            RETURN res;
+        END IF;
+    END get_value;
+
+    MEMBER FUNCTION is_consistent RETURN VARCHAR2 IS
+        child_sum NUMBER;
+    BEGIN
+        SELECT SUM(VALUE(h).get_value()) INTO child_sum FROM TABLE(childHeadings) h;
+        IF get_value() = child_sum THEN
+            RETURN 'T';
+        ELSE
+            RETURN 'F';
+        END IF;
+    END is_consistent;
+
+END;
+/
+
+
+
 -- TABLE CREATION
 CREATE TABLE countries OF country_t (
     code            PRIMARY KEY
