@@ -91,3 +91,18 @@ SELECT v.description, v.partyName, v.year, v.salaries_per_thousand_inhabitants
             FROM aux_view vmax
             GROUP BY vmax.year
     );
+
+-- Profit of each NUTS III for each year
+SELECT m.nuts_3, p.year, SUM(NVL(r.amount, 0)) - SUM(NVL(e.amount, 0)) AS profit
+    FROM GTD12.headings h
+        LEFT OUTER JOIN GTD12.aexpenses e ON h.headingId = e.headingId
+        LEFT OUTER JOIN GTD12.arevenues r ON h.headingId = r.headingId
+        INNER JOIN GTD12.periods p ON (p.periodId = e.periodId OR p.periodId = r.periodId)
+        INNER JOIN (
+            SELECT n3.designation AS nuts_3, m.code AS m_code, m.designation AS m_designation, m.population AS m_population
+                FROM GTD12.municipalities m
+                    INNER JOIN GTD12.municipalities n3 ON m.parent = n3.code
+                WHERE m.geolevel = 4
+        ) m ON (m.m_code = e.code OR m.m_code = r.code)
+    WHERE (h.description = 'DESPESA_TOTAL' OR h.description = 'RECEITAS_TOTAIS')
+    GROUP BY m.nuts_3, p.year;

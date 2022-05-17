@@ -53,4 +53,9 @@ WHERE (v.year, v.remun_1k) IN (
 ORDER BY year;
 
 -- Add a query that illustrates the use of OR extensions
--- 
+-- Profit of each NUTS III for each year
+SELECT n3.designation, VALUE(e).period.year AS year, SUM(VALUE(r).amount) - SUM(VALUE(e).amount) AS profit
+    FROM nuts_3 n3, TABLE(n3.municipalities) m, TABLE(VALUE(m).expenses) e, TABLE(VALUE(m).revenues) r
+    WHERE VALUE(e).heading.description = 'DESPESA_TOTAL' AND VALUE(r).heading.description = 'RECEITAS_TOTAIS'
+        AND VALUE(e).period.year = VALUE(r).period.year
+    GROUP BY n3.designation, VALUE(e).period.year;
