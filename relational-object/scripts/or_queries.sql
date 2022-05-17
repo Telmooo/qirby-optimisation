@@ -1,10 +1,9 @@
 -- Calculate the expenses by period and by heading of the municipalities of each region.
 -- Order municipalities by decreasing population.
-SELECT m.designation, VALUE(e).period.year year, VALUE(e).heading.description description, SUM(VALUE(e).amount) total_amount
+SELECT m.designation, VALUE(e).period.year year, VALUE(e).heading.description description, m.population, SUM(VALUE(e).amount) total_amount
 FROM municipalities m, TABLE(m.expenses) e
 GROUP BY VALUE(e).period.year, VALUE(e).heading.description, m.designation, m.population
 ORDER BY m.population DESC;
-
 
 -- Check whether the higher level headings values are consistent with the corresponding lower values.
 SELECT h.description, h.is_consistent() FROM headings h;
@@ -53,7 +52,5 @@ WHERE (v.year, v.remun_1k) IN (
 )
 ORDER BY year;
 
-
-
 -- Add a query that illustrates the use of OR extensions
-
+-- 

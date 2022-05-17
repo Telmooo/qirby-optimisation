@@ -119,7 +119,8 @@ CREATE OR REPLACE TYPE BODY heading_t AS
         child_sum NUMBER;
     BEGIN
         SELECT SUM(VALUE(h).get_value()) INTO child_sum FROM TABLE(SELF.childHeadings) h;
-        IF SELF.get_value() = child_sum THEN
+        child_sum := NVL(child_sum, -1);
+        IF child_sum = -1 OR SELF.get_value() = child_sum THEN
             RETURN 'T';
         ELSE
             RETURN 'F';
@@ -137,6 +138,7 @@ CREATE OR REPLACE TYPE BODY period_t AS
                 AND VALUE(e).code.code = municipality_code
                 AND VALUE(l).party.acronym = party_name
                 AND VALUE(l).code.code = municipality_code;
+        ret_var := NVL(ret_var, 0);
         RETURN ret_var;
     END;
 
@@ -149,6 +151,7 @@ CREATE OR REPLACE TYPE BODY period_t AS
                 AND VALUE(e).code.code = municipality_code
                 AND VALUE(l).party.acronym = party_name
                 AND VALUE(l).code.code = municipality_code;
+        ret_var := NVL(ret_var, 0);
         RETURN ret_var;
     END;
 END;
