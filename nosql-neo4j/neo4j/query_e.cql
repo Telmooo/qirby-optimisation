@@ -2,8 +2,8 @@ MATCH (s:Student) -[:ENROLLED_IN]-> (p:Program)
 WITH *
 
 MATCH (s) -[:CANDIDATE_TO]-> (p)
-WITH s AS student, p AS program, count(p) AS total_applications
+WITH s AS student, p AS program, count(p) AS applications_per_student
 
-WHERE total_applications > 1
-RETURN student, program, total_applications
-ORDER BY total_applications DESC
+WHERE applications_per_student > 1
+RETURN student, program, applications_per_student
+ORDER BY applications_per_student DESC
