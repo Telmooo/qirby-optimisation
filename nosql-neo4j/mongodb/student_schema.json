@@ -1,0 +1,29 @@
+{
+  "id": 123,
+  "candidate_to": [
+    {
+      "program": {
+        "code": "",
+        "acronym": "",
+        "designation": ""
+      },
+      "year": 2000,
+      "result": "C",
+      "average": 14.6
+    }
+  ],
+  "enrolled_in": [
+    {
+      "program": {
+        "code": "",
+        "acronym": "",
+        "designation": ""
+      },
+      "nr": 20,
+      "enroll_year": 2001,
+      "status": "C",
+      "conclusion_year": 2006,
+      "final_average": 13.6
+    }
+  ]
+}

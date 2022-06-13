@@ -1,0 +1,23 @@
+{
+  "code": "",
+  "acronym": "",
+  "designation": "",
+  "candidates": [
+    {
+      "id": 123,
+      "year": 2000,
+      "result": "C",
+      "average": 14.6
+    }
+  ],
+  "students": [
+    {
+      "id": 123,
+      "nr": 20,
+      "enroll_year": 2001,
+      "status": "C",
+      "conclusion_year": 2006,
+      "final_average": 13.6
+    }
+  ]
+}
